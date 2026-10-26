@@ -23,7 +23,7 @@ En futuras etapas se incorporarán autenticación, autorización, roles de usuar
 1. Clonar el repositorio:
 
    ```bash
-   git clone URL_DEL_REPOSITORIO
+   git clone https://github.com/patriciodalessandro/plataforma-eventos.git
    ```
 
 2. Ingresar a la carpeta del proyecto:
