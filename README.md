@@ -1,21 +1,23 @@
 # Plataforma de Eventos Culturales
 
-API REST desarrollada con Node.js y Express para una plataforma de eventos culturales, como recitales, talleres, exposiciones y actividades recreativas.
+API REST desarrollada con Node.js, Express y MongoDB para una plataforma de eventos culturales, como recitales, talleres y exposiciones.
 
-El proyecto forma parte del curso de Programación Backend II de Coderhouse.
+Proyecto desarrollado para el curso de Programación Backend II de Coderhouse.
 
 ## Objetivo
 
-Construir progresivamente una API que permita gestionar usuarios, eventos culturales e inscripciones.
+Construir progresivamente una API para gestionar usuarios, eventos culturales e inscripciones.
 
-En futuras etapas se incorporarán autenticación, autorización, roles de usuario, conexión a MongoDB y reglas de negocio.
+En esta etapa se implementa la consulta de eventos y el registro seguro de usuarios, utilizando una arquitectura por capas.
 
 ## Tecnologías
 
 - Node.js
 - JavaScript con módulos ESM
 - Express
+- MongoDB Atlas
 - Mongoose
+- bcrypt
 - dotenv
 
 ## Instalación
@@ -26,7 +28,7 @@ En futuras etapas se incorporarán autenticación, autorización, roles de usuar
    git clone https://github.com/patriciodalessandro/plataforma-eventos.git
    ```
 
-2. Ingresar a la carpeta del proyecto:
+2. Ingresar al proyecto:
 
    ```bash
    cd plataforma-eventos
@@ -38,7 +40,15 @@ En futuras etapas se incorporarán autenticación, autorización, roles de usuar
    npm install
    ```
 
-4. Crear un archivo `.env` tomando como referencia `.env.example`.
+4. Crear un archivo `.env` a partir de `.env.example` y configurar las variables necesarias:
+
+   ```dotenv
+   PORT=8080
+   NODE_ENV=development
+   MONGO_URL=mongodb+srv://USUARIO:CONTRASEÑA@CLUSTER.mongodb.net/plataforma_eventos
+   ```
+
+   Es necesario contar con un usuario de MongoDB Atlas y autorizar la IP de conexión.
 
 5. Iniciar el servidor:
 
@@ -46,7 +56,7 @@ En futuras etapas se incorporarán autenticación, autorización, roles de usuar
    npm start
    ```
 
-   Para ejecutarlo en modo desarrollo, con reinicio automático:
+   O, para desarrollo:
 
    ```bash
    npm run dev
@@ -56,12 +66,25 @@ En futuras etapas se incorporarán autenticación, autorización, roles de usuar
 
 | Variable | Descripción |
 |---|---|
-| `PORT` | Puerto en el que se ejecuta el servidor. |
-| `NODE_ENV` | Entorno de ejecución, por ejemplo `development`. |
-| `MONGO_URL` | Cadena de conexión a MongoDB, para futuras etapas. |
-| `JWT_SECRET` | Clave para firmar tokens JWT, para futuras etapas. |
+| `PORT` | Puerto del servidor. Por defecto, 8080. |
+| `NODE_ENV` | Entorno de ejecución. |
+| `MONGO_URL` | Cadena de conexión a MongoDB Atlas. |
+| `JWT_SECRET` | Reservada para futuras implementaciones de autenticación. |
 
-El archivo `.env` no se incluye en el repositorio para evitar exponer información sensible.
+El archivo `.env` está excluido del repositorio mediante `.gitignore`.
+
+## Arquitectura
+
+El proyecto utiliza la siguiente estructura por capas:
+
+**Rutas → Controladores → Servicios → Repositorios → DAO → Modelos**
+
+- **Rutas:** definen los endpoints.
+- **Controladores:** reciben las solicitudes y generan respuestas HTTP.
+- **Servicios:** contienen las validaciones y la lógica de negocio.
+- **Repositorios:** conectan los servicios con la capa de acceso a datos.
+- **DAO:** realiza las operaciones de consulta y persistencia mediante Mongoose.
+- **Modelos:** definen los esquemas de MongoDB.
 
 ## Estructura del proyecto
 
@@ -70,31 +93,35 @@ src/
 ├── app.js
 ├── server.js
 ├── config/
+│   └── config.js
 ├── controllers/
 │   ├── events.controller.js
 │   └── sessions.controller.js
 ├── dao/
+│   ├── events.dao.js
+│   └── users.dao.js
 ├── middlewares/
 ├── models/
-│   ├── User.js
-│   └── Event.js
+│   ├── Event.js
+│   └── User.js
 ├── repositories/
+│   ├── events.repository.js
+│   └── users.repository.js
 ├── routes/
 │   ├── events.routes.js
 │   └── sessions.routes.js
 ├── services/
+│   ├── events.service.js
+│   └── sessions.service.js
 └── utils/
+    └── hash.js
 ```
 
-`app.js` configura Express y registra las rutas. `server.js` inicia el servidor utilizando el puerto configurado.
-
-Las carpetas de servicios, repositorios y DAO están preparadas para incorporar progresivamente una arquitectura por capas.
-
-## Endpoints disponibles
+## Endpoints
 
 ### GET /api/health
 
-Comprueba que el servidor está activo.
+Comprueba que el servidor está funcionando.
 
 **Respuesta HTTP 200:**
 
@@ -107,9 +134,9 @@ Comprueba que el servidor está activo.
 
 ### GET /api/events
 
-Devuelve el listado inicial de eventos. Por ahora no hay registros cargados.
+Consulta los eventos almacenados en MongoDB.
 
-**Respuesta HTTP 200:**
+**Respuesta HTTP 200 cuando no hay eventos:**
 
 ```json
 {
@@ -120,7 +147,7 @@ Devuelve el listado inicial de eventos. Por ahora no hay registros cargados.
 
 ### GET /api/sessions
 
-Endpoint inicial del módulo de sesiones. Todavía no implementa autenticación.
+Endpoint inicial del módulo de sesiones.
 
 **Respuesta HTTP 200:**
 
@@ -131,20 +158,104 @@ Endpoint inicial del módulo de sesiones. Todavía no implementa autenticación.
 }
 ```
 
-## Roles previstos
+### POST /api/sessions/register
 
-El proyecto contempla tres roles para futuras etapas:
+Registra un nuevo usuario en MongoDB.
 
-- **admin:** administración general de la plataforma.
-- **organizer:** creación y gestión de eventos.
-- **user:** consulta de eventos e inscripciones.
+**Datos requeridos:**
 
-Los permisos y la autenticación todavía no están implementados.
+```json
+{
+  "first_name": "Ana",
+  "last_name": "Perez",
+  "email": "ana@example.com",
+  "password": "Prueba1234"
+}
+```
+
+El registro realiza las siguientes operaciones:
+
+- Verifica los campos obligatorios.
+- Valida el formato del email.
+- Exige una contraseña de al menos 8 caracteres.
+- Normaliza el email a minúsculas.
+- Comprueba que el email no esté registrado.
+- Genera un hash de la contraseña mediante bcrypt.
+- Guarda el usuario en MongoDB.
+- Devuelve los datos públicos sin incluir la contraseña.
+
+El rol asignado por defecto es `user`.
+
+**Respuesta HTTP 201 — Registro exitoso:**
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "id": "ID_GENERADO_POR_MONGODB",
+    "first_name": "Ana",
+    "last_name": "Perez",
+    "email": "ana@example.com",
+    "role": "user"
+  }
+}
+```
+
+**Respuesta HTTP 400 — Campos faltantes:**
+
+```json
+{
+  "status": "error",
+  "message": "Faltan campos obligatorios"
+}
+```
+
+**Respuesta HTTP 400 — Email inválido:**
+
+```json
+{
+  "status": "error",
+  "message": "Formato de email inválido"
+}
+```
+
+**Respuesta HTTP 409 — Email duplicado:**
+
+```json
+{
+  "status": "error",
+  "message": "El email ya está registrado"
+}
+```
+
+## Pruebas realizadas
+
+Se verificaron los siguientes casos mediante solicitudes HTTP:
+
+| Caso | Código esperado | Resultado |
+|---|---|---|
+| Registro correcto | 201 | Correcto |
+| Email duplicado | 409 | Correcto |
+| Campos obligatorios faltantes | 400 | Correcto |
+| Email con formato inválido | 400 | Correcto |
+| Consulta de eventos sin registros | 200 | Correcto |
+
+También se comprobó en MongoDB Atlas que la contraseña se almacena como hash de bcrypt y que no se incluye en la respuesta del registro.
+
+## Roles
+
+El modelo de usuarios contempla tres roles:
+
+- `user`: rol predeterminado.
+- `organizer`: previsto para gestionar eventos.
+- `admin`: previsto para administración general.
+
+La autorización por roles todavía no está implementada.
 
 ## Estado del proyecto
 
-**Pre-entrega 1 — Estructura arquitectónica inicial.**
+**Segunda preentrega — Registro seguro de usuarios.**
 
-Actualmente están implementados el servidor Express, la configuración por variables de entorno, las rutas iniciales y los modelos base de usuarios y eventos.
+Se implementaron la arquitectura por capas para la consulta de eventos, la conexión a MongoDB Atlas y el registro de usuarios con validaciones, control de emails duplicados y hash de contraseñas mediante bcrypt.
 
-La conexión a MongoDB, la persistencia de datos, las inscripciones y la autenticación se incorporarán en próximas etapas.
+Quedan para futuras etapas el inicio de sesión, la autenticación, la autorización por roles y la gestión de inscripciones.
