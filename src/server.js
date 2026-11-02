@@ -1,8 +1,23 @@
-import "dotenv/config";
+import mongoose from "mongoose";
 import app from "./app.js";
+import { config } from "./config/config.js";
 
-const PORT = process.env.PORT || 8080;
+const startServer = async () => {
+    try {
+        if (!config.MONGO_URL) {
+            throw new Error("Falta configurar MONGO_URL");
+        }
 
-app.listen(PORT, () => {
-    console.log(`Servidor escuchando en el puerto ${PORT}`);
-});
+        await mongoose.connect(config.MONGO_URL);
+        console.log("MongoDB conectado correctamente");
+
+        app.listen(config.PORT, () => {
+            console.log(`Servidor escuchando en el puerto ${config.PORT}`);
+        });
+    } catch (error) {
+        console.error("Error al iniciar el servidor:", error.message);
+        process.exit(1);
+    }
+};
+
+startServer();
